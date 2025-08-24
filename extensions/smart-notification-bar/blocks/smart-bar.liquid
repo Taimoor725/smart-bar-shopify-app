@@ -1,0 +1,399 @@
+{% comment %}
+  change the app URL what ever it is nothing else 
+  this thing "app_url"
+{% endcomment %}
+
+{%- liquid
+  assign shop_domain = shop.domain
+  assign app_url = 'https://count-turns-projectors-usual.trycloudflare.com'  
+-%}
+
+<style>
+/* Inter font fallback */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+/* Base bar */
+.notification-bar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 48px !important;
+  padding: 12px 18px !important;
+  text-align: center !important;
+  transition: transform .35s cubic-bezier(.4,0,.2,1), opacity .28s ease !important;
+  transform: translateY(-110%) !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  flex-wrap: nowrap !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12) !important;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+}
+
+/* text */
+.notification-bar .notification-text {
+  flex: 1 !important;
+  padding: 0 10px !important;
+  word-break: break-word !important;
+  line-height: 1.2 !important;
+  white-space: normal !important;
+  text-align: center !important;
+}
+
+/* close button */
+.notification-bar .close-btn {
+  background: rgba(255,255,255,0.14) !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  margin-left: 10px !important;
+  color: inherit !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+.notification-bar .close-btn:hover { background: rgba(255,255,255,0.22) !important; }
+
+/* Designs via CSS vars (fallback) */
+.notification-bar.solid { background: var(--bg-color) !important; }
+.notification-bar.gradient { background: linear-gradient(45deg, var(--bg-color), var(--bg-color-light)) !important; }
+.notification-bar.linear { background: var(--bg-color) !important; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.08), rgba(255,255,255,0.08) 2px, transparent 2px, transparent 6px) !important; }
+.notification-bar.stripes, .notification-bar.striped { background: var(--bg-color) !important; background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.12) 2px, rgba(255,255,255,0.12) 4px) !important; }
+.notification-bar.dots { background: var(--bg-color) !important; background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px) !important; background-size: 8px 8px !important; }
+.notification-bar.cross { background: var(--bg-color) !important; background-image: repeating-linear-gradient(0deg, transparent, transparent 6px, rgba(255,255,255,.06) 6px, rgba(255,255,255,.06) 7px), repeating-linear-gradient(90deg, transparent, transparent 6px, rgba(255,255,255,.04) 6px, rgba(255,255,255,.04) 7px) !important; }
+.notification-bar.diamond { background: var(--bg-color) !important; background-image: repeating-conic-gradient(from 45deg at 50% 50%, transparent 0deg, rgba(255,255,255,.06) 90deg, transparent 180deg) !important; background-size: 12px 12px !important; }
+
+/* sticky loaded */
+.notification-bar.sticky.loaded { transform: translateY(0) !important; opacity: 1 !important; }
+.notification-bar:not(.sticky) { opacity: 1 !important; }
+.notification-bar:not(.sticky).hide-on-scroll { transform: translateY(-110%) !important; }
+
+/* body offset when bar present */
+body.has-notification-bar { padding-top: 60px !important; }
+@media (max-width:768px){ body.has-notification-bar{ padding-top:50px !important; } .notification-bar{ padding:10px 14px !important; font-size:13px !important; } }
+@media (max-width:480px){ body.has-notification-bar{ padding-top:46px !important; } .notification-bar{ padding:8px 12px !important; font-size:12px !important; } }
+
+/* ensure font style inheritance */
+.notification-bar, .notification-bar * { font-family: "Inter", Arial, sans-serif !important; }
+</style>
+
+<script>
+(function(){
+  'use strict';
+
+  const DEBUG = false;
+  const shopDomain = {{ shop_domain | json }};
+  const appUrlRaw = {{ app_url | json }};
+  const FETCH_PATH = '/api/bars';
+
+  const log = (...a) => DEBUG && console.log('[SNB]', ...a);
+  const warn = (...a) => DEBUG && console.warn('[SNB]', ...a);
+  const err = (...a) => DEBUG && console.error('[SNB]', ...a);
+
+  const appUrl = (String(appUrlRaw || '')).replace(/\/+$/, '');
+  if (window.notificationBarsLoaded) return;
+  window.notificationBarsLoaded = true;
+
+  function getPageKey() {
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path === '/' || path === '' || path.startsWith('/?')) return 'home';
+    if (path.includes('/products/')) return 'products';
+    if (path.includes('/collections/')) return 'collections';
+    if (path.includes('/cart')) return 'cart';
+    return 'other';
+  }
+  function storageKey(barId) {
+    return `snb_dismissed_${shopDomain}_${barId}_${getPageKey()}`;
+  }
+  function isDismissed(barId) {
+    try { return localStorage.getItem(storageKey(barId)) === 'true'; }
+    catch(e){ return false; }
+  }
+  function markDismissed(barId) {
+    try { localStorage.setItem(storageKey(barId), 'true'); } catch(e){}
+  }
+
+  function normalizeBar(raw) {
+    const id = raw.id ?? raw.barId ?? null;
+    const title = raw.title ?? raw.text ?? '';
+    const bgColor = raw.bgColor ?? raw.backgroundColor ?? raw.background ?? raw.color ?? null;
+    const bgDesign = (raw.bgDesign ?? raw.backgroundDesign ?? raw.design ?? null);
+    const textColor = raw.textColor ?? raw.colorText ?? '#ffffff';
+    const fontSize = raw.fontSize ?? String(raw.size) ?? '16';
+    const fontWeight = raw.fontWeight ?? String(raw.weight) ?? '400';
+    const fontFamily = raw.fontStyle ?? raw.fontFamily ?? 'Inter';
+    const isSticky = (typeof raw.sticky === 'boolean') ? raw.sticky : !!raw.isSticky;
+    const isDismissible = (typeof raw.dismissible === 'boolean') ? raw.dismissible : !!raw.isDismissible;
+    const isActive = (typeof raw.active === 'boolean') ? raw.active : !!raw.isActive;
+    let page = raw.page ?? raw.targetPages ?? raw.pageTarget ?? 'All Pages';
+    let targetPages = [];
+    if (Array.isArray(page)) {
+      targetPages = page.map(p => String(p).toLowerCase());
+    } else if (typeof page === 'string') {
+      if (page.indexOf(',') !== -1) {
+        targetPages = page.split(',').map(p => p.trim().toLowerCase());
+      } else {
+        targetPages = [String(page).trim().toLowerCase()];
+      }
+    } else {
+      targetPages = ['all pages'];
+    }
+
+    return {
+      id, title, bgColor, bgDesign, textColor,
+      fontSize, fontWeight, fontFamily,
+      isSticky, isDismissible, isActive,
+      page: targetPages[0] || 'all pages',
+      targetPages
+    };
+  }
+
+  function getDesignStyle(designtype, baseColor) {
+    const overlayColor = "rgba(255,255,255,0.25)";
+    const base = baseColor || '#222222';
+    switch ((designtype || 'solid').toString().toLowerCase()) {
+      case 'solid': return { background: base };
+      case 'gradient': return { background: `linear-gradient(90deg, ${base}, ${lightenColor(base, 32)})` };
+      case 'linear': return { background: base, backgroundImage: `repeating-linear-gradient(45deg, ${overlayColor}, ${overlayColor} 8px, transparent 8px, transparent 16px)` };
+      case 'cross': return { background: base, backgroundImage: `repeating-linear-gradient(0deg, ${overlayColor}, ${overlayColor} 2px, transparent 2px, transparent 12px), repeating-linear-gradient(90deg, ${overlayColor}, ${overlayColor} 2px, transparent 2px, transparent 12px)` };
+      case 'diamond': return { background: base, backgroundImage: `repeating-linear-gradient(45deg, ${overlayColor}, ${overlayColor} 5px, transparent 5px, transparent 20px), repeating-linear-gradient(-45deg, ${overlayColor}, ${overlayColor} 5px, transparent 5px, transparent 20px)` };
+      case 'stripes':
+      case 'striped': return { background: base, backgroundImage: `repeating-linear-gradient(0deg, ${overlayColor}, ${overlayColor} 10px, transparent 10px, transparent 20px)` };
+      case 'dots': return { background: base, backgroundImage: `radial-gradient(${overlayColor} 15%, transparent 16%), radial-gradient(${overlayColor} 15%, transparent 16%)`, backgroundPosition: '0 0, 10px 10px', backgroundSize: '20px 20px' };
+      default:
+        if (typeof designtype === 'string' && (designtype.indexOf('gradient') !== -1 || designtype.indexOf('url(') !== -1)) {
+          return { background: designtype };
+        }
+        return { background: base };
+    }
+  }
+  function lightenColor(hex, amount) {
+    if (!hex) return '#666666';
+    let h = String(hex).replace('#','').trim();
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const r = Math.min(255, parseInt(h.substring(0,2) || '00',16) + amount);
+    const g = Math.min(255, parseInt(h.substring(2,4) || '00',16) + amount);
+    const b = Math.min(255, parseInt(h.substring(4,6) || '00',16) + amount);
+    return '#' + r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
+  }
+
+  // ===== FIXED pickBar: only newest bar matters; if dismissed, nothing else shows =====
+  function pickBar(barsRaw) {
+    const normalized = barsRaw.map(normalizeBar).filter(b => Boolean(b.id));
+    if (!normalized.length) return null;
+
+    const currentPage = getPageKey();
+
+    // Split specific vs all
+    const specific = normalized.filter(b => !['all','all pages','allpages'].includes((b.page||'').toLowerCase()));
+    const allPages = normalized.filter(b => ['all','all pages','allpages',''].includes((b.page||'').toLowerCase()));
+
+    const specificForCurrent = specific.filter(b => {
+      const t = (b.targetPages || []).map(x => String(x).toLowerCase());
+      if (t.length) {
+        return t.some(x => {
+          if (x.includes('home')) return currentPage==='home';
+          if (x.includes('product')) return currentPage==='products';
+          if (x.includes('collection')) return currentPage==='collections';
+          if (x.includes('cart')) return currentPage==='cart';
+          if (x==='all'||x==='all pages') return true;
+          return false;
+        });
+      }
+      const p = (b.page||'').toLowerCase();
+      if (p.includes('home')) return currentPage==='home';
+      if (p.includes('product')) return currentPage==='products';
+      if (p.includes('collection')) return currentPage==='collections';
+      if (p.includes('cart')) return currentPage==='cart';
+      return false;
+    });
+
+    // Only consider the most recent bar (highest id) in each group
+    if (specificForCurrent.length > 0) {
+      specificForCurrent.sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+      const newest = specificForCurrent[0];
+      return (newest.isActive && !isDismissed(newest.id)) ? newest : null;
+    }
+
+    if (specificForCurrent.length === 0 && allPages.length > 0) {
+      allPages.sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+      const newest = allPages[0];
+      return (newest.isActive && !isDismissed(newest.id)) ? newest : null;
+    }
+
+    return null;
+  }
+
+  // ===== renderBar + rest of code unchanged =====
+  function applyImportantStyle(el, prop, value) {
+    try { el.style.setProperty(prop, value, 'important'); } catch(e){ el.style[prop] = value; }
+  }
+
+  function renderBar(bar) {
+    try {
+      if (!bar || !bar.id) return;
+      // remove existing
+      const existing = document.querySelector('.notification-bar');
+      if (existing) existing.remove();
+
+      const id = bar.id;
+      const text = bar.title || '';
+      const bgColor = bar.bgColor || bar.backgroundColor || '#222222';
+      const design = (bar.bgDesign || bar.backgroundDesign) || null;
+      const textColor = bar.textColor || '#ffffff';
+      const fontSize = String(bar.fontSize || '16').replace('px','');
+      const fontWeight = String(bar.fontWeight || '400');
+      const fontFamily = bar.fontFamily || bar.fontStyle || 'Inter';
+      const sticky = !!bar.isSticky;
+      const dismissible = !!bar.isDismissible;
+
+      const container = document.createElement('div');
+      container.className = 'notification-bar';
+      if (design) container.classList.add(String(design).toLowerCase());
+      if (sticky) container.classList.add('sticky');
+
+      // Apply design style: if design is full CSS (contains gradient/url) use it; else use our generator
+      let styleObj;
+      if (typeof design === 'string' && (design.indexOf('gradient') !== -1 || design.indexOf('url(') !== -1)) {
+        // user supplied full CSS background string
+        styleObj = { background: design };
+      } else {
+        styleObj = getDesignStyle(design, bgColor);
+      }
+
+      // Apply styles inline with !important
+      if (styleObj.background) applyImportantStyle(container, 'background', styleObj.background);
+      if (styleObj.backgroundImage) applyImportantStyle(container, 'background-image', styleObj.backgroundImage);
+      if (styleObj.backgroundPosition) applyImportantStyle(container, 'background-position', styleObj.backgroundPosition);
+      if (styleObj.backgroundSize) applyImportantStyle(container, 'background-size', styleObj.backgroundSize);
+
+      // Also set CSS vars used by CSS fallback classes
+      applyImportantStyle(container, '--bg-color', bgColor);
+      applyImportantStyle(container, '--bg-color-light', lightenColor(bgColor, 28));
+
+      applyImportantStyle(container, 'color', textColor);
+      applyImportantStyle(container, 'font-size', Number(fontSize) + 'px');
+      applyImportantStyle(container, 'font-weight', fontWeight);
+      applyImportantStyle(container, 'font-family', `"${fontFamily}", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`);
+
+      // content
+      const span = document.createElement('span');
+      span.className = 'notification-text';
+      span.textContent = text;
+      applyImportantStyle(span, 'color', textColor);
+      applyImportantStyle(span, 'font-size', Number(fontSize) + 'px');
+      applyImportantStyle(span, 'font-weight', fontWeight);
+      applyImportantStyle(span, 'font-family', `"${fontFamily}", Inter, Arial, sans-serif`);
+
+      container.appendChild(span);
+
+      // dismiss
+      if (dismissible) {
+        const btn = document.createElement('button');
+        btn.className = 'close-btn';
+        btn.setAttribute('aria-label','Dismiss notification');
+        btn.innerHTML = '×';
+        applyImportantStyle(btn, 'color', textColor);
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          // mark dismissed for this shop+bar+page only
+          markDismissed(id);
+          // animate out
+          container.style.transition = 'transform .28s ease, opacity .22s ease';
+          applyImportantStyle(container, 'transform', 'translateY(-110%)');
+          applyImportantStyle(container, 'opacity', '0');
+          setTimeout(()=> {
+            if (container.parentNode) container.parentNode.removeChild(container);
+            document.body.classList.remove('has-notification-bar');
+            try { document.body.style.removeProperty('padding-top'); } catch(e){}
+          }, 500);
+        });
+        container.appendChild(btn);
+      }
+
+      // inject at top
+      document.body.insertBefore(container, document.body.firstChild);
+      // show and set body offset
+      requestAnimationFrame(() => {
+        applyImportantStyle(container, 'transform', 'translateY(0)');
+        applyImportantStyle(container, 'opacity', '1');
+        document.body.classList.add('has-notification-bar');
+        // set body padding after measurement
+        setTimeout(()=> {
+          try {
+            const h = container.offsetHeight || 52;
+            document.body.style.setProperty('padding-top', h + 'px', 'important');
+          } catch(e){}
+        }, 60);
+      });
+
+      // non-sticky hide on scroll
+      if (!sticky) {
+        let last = 0;
+        window.addEventListener('scroll', function() {
+          const st = window.pageYOffset || document.documentElement.scrollTop;
+          if (st > last && st > 100) container.classList.add('hide-on-scroll');
+          else container.classList.remove('hide-on-scroll');
+          last = st <= 0 ? 0 : st;
+        });
+      }
+
+      log('Rendered bar id=' + id);
+    } catch(e) {
+      err('render error', e);
+    }
+  }
+
+  // ===== fetch bars & orchestrate =====
+  async function loadBars() {
+    const url = appUrl + FETCH_PATH + '?shop=' + encodeURIComponent(shopDomain);
+    log('fetching', url);
+    try {
+      const res = await fetch(url, { method: 'GET', credentials: 'omit' });
+      if (!res.ok) {
+        warn('API returned not ok', res.status);
+        return;
+      }
+      const data = await res.json();
+      log('api returned', Array.isArray(data) ? data.length + ' bars' : typeof data);
+      const bar = pickBar(data || []);
+      if (!bar) {
+        log('No eligible bar for this page (or specific was dismissed) — nothing to render.');
+        return;
+      }
+      renderBar(bar);
+    } catch (e) {
+      err('Failed to load bars', e);
+      // If CORS/preflight issue occurs, browser console will show network error
+    }
+  }
+
+  // init
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadBars);
+  } else {
+    loadBars();
+  }
+
+  // expose helper
+  window.smartNotificationBar = {
+    dismiss: function(id) { markDismissed(id); const el = document.querySelector('.notification-bar'); if (el) el.remove(); }
+  };
+
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Smart Notification Bar",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

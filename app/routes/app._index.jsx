@@ -1,17 +1,4 @@
-import {
-  Page,
-  Card,
-  Layout,
-  Text,
-  Modal,
-  BlockStack,
-  Button,
-  Box,
-  Icon,
-  InlineStack,
-  TextField,
-  Select,
-} from "@shopify/polaris";
+import {  Page,  Card,  Layout,  Text,  Modal,  BlockStack,  Button,  Box,  Icon,  InlineStack,  TextField,  Select,} from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import {
   NotificationIcon,
@@ -29,8 +16,9 @@ import CreateBar from "./components/ModalForm";
 import { getDesignStyle } from "./components/preview/getDesign";
 import { DeleteBar, ToggleActiveBar } from "./helpers/BarHandler";
 import { MdClose } from "react-icons/md";
+import InstallGuide from "./components/InstallGuide";
+import FaqPage from "./components/FaqPage";
 
-// Loader
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const { shop } = session;
@@ -38,7 +26,6 @@ export async function loader({ request }) {
   return json({ bars });
 }
 
-// Action
 export async function action({ request }) {
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -79,10 +66,11 @@ export async function action({ request }) {
 export default function Dashboard() {
   const { bars } = useLoaderData();
   const fetcher = useFetcher();
-
+  const [guidePage , setGuidePage] = useState(false)
+  const [faqPage , setFaqPage]=useState(false)
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all"); // "all" | "active" | "inactive"
+  const [status, setStatus] = useState("all"); 
 
   // for delete button
   const [deleteId, setDeleteId] = useState(null);
@@ -125,10 +113,8 @@ export default function Dashboard() {
   };
 
   const searchHandler = (value) => setSearch(value);
-
   const statusHandler = (value) => setStatus(value);
 
-  // Derive filtered list
   const filteredBars = useMemo(() => {
     const q = search.trim().toLowerCase();
     return bars.filter((bar) => {
@@ -164,15 +150,24 @@ export default function Dashboard() {
   ];
 
   return (
-    <Page>
-      <TitleBar title="Dashboard" />
+    <div>
+
+        {guidePage && (
+          <InstallGuide setGuidePage={setGuidePage}/>
+        )}
+
+        {faqPage && (
+          <FaqPage setFaqPage={setFaqPage}/>
+        )}
+      
+
 
       {editModal && (
         <Modal
-          open={editModal}
-          onClose={() => setEditModal(false)}
-          title="Create Notification Bar"
-          large
+        open={editModal}
+        onClose={() => setEditModal(false)}
+        title="Create Notification Bar"
+        large
         >
           <Modal.Section>
             <CreateBar setModal={setEditModal} mode="update" data={updatingData} />
@@ -182,10 +177,10 @@ export default function Dashboard() {
 
       {modal && (
         <Modal
-          open={modal}
-          onClose={() => setModal(false)}
-          title="Create Notification Bar"
-          large
+        open={modal}
+        onClose={() => setModal(false)}
+        title="Create Notification Bar"
+        large
         >
           <Modal.Section>
             <CreateBar setModal={setModal} mode="create" />
@@ -193,6 +188,10 @@ export default function Dashboard() {
         </Modal>
       )}
 
+
+{!guidePage && !faqPage &&(
+<Page>
+<TitleBar title="Dashboard" />
       <Box paddingBlockStart="400">
         <Layout>
           <Layout.Section>
@@ -206,8 +205,14 @@ export default function Dashboard() {
                 </Text>
               </BlockStack>
               <InlineStack gap="200" justifyContent="end">
-                <Button icon={BookOpenIcon}>Install Guide</Button>
-                <Button icon={QuestionCircleIcon}>FAQ</Button>
+                  <Button icon={BookOpenIcon} onClick={()=>setGuidePage(true)}>
+                    Install Guide
+                  </Button>
+                  <Button icon={QuestionCircleIcon} onClick={()=>setFaqPage(true)}>
+                    FAQ
+                  </Button>
+
+
                 <Button
                   tone="success"
                   icon={NotificationIcon}
@@ -222,7 +227,7 @@ export default function Dashboard() {
         </Layout>
       </Box>
 
-      {/* --- ssssssssssssssss --- */}
+{/* --- ssssssssssssssss --- */}
       <Box paddingBlockStart="400">
         <Layout>
           <Layout.Section>
@@ -534,5 +539,7 @@ export default function Dashboard() {
         </Layout>
       </Box>
     </Page>
+      )}
+      </div>
   );
 }

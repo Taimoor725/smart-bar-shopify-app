@@ -3,7 +3,7 @@
 client_id = "e3b2478d471c8b4c76330bb44c4139ae"
 name = "smart-bar"
 handle = "smart-bar-1"
-application_url = "https://count-turns-projectors-usual.trycloudflare.com"
+application_url = "https://findlaw-wait-logan-gig.trycloudflare.com"
 embedded = true
 
 [build]
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://count-turns-projectors-usual.trycloudflare.com/auth/callback", "https://count-turns-projectors-usual.trycloudflare.com/auth/shopify/callback", "https://count-turns-projectors-usual.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://findlaw-wait-logan-gig.trycloudflare.com/auth/callback", "https://findlaw-wait-logan-gig.trycloudflare.com/auth/shopify/callback", "https://findlaw-wait-logan-gig.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
